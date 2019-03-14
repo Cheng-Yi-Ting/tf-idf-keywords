@@ -3,10 +3,22 @@
 
 from segmenter import segment
 import sys, getopt
+import os
+import json
 
-
-class IDFLoader(object):
-    def __init__(self, idf_path):
+class MyDocuments(object):
+    def __init__(self, idf_path,dirname):
+        self.dirname = dirname
+        self.fname=[]
+        # print(idf_path)
+        # print(dirname)
+        for dirfile in os.walk(self.dirname):
+            # print(dirfile)
+            self.folderName = dirfile[0]#資料夾名
+            for fname in dirfile[2]: #檔名
+                self.fname.append(fname)
+            break
+        self.dirname = dirname
         self.idf_path = idf_path
         self.idf_freq = {}     # idf
         self.mean_idf = 0.0    # 均值
@@ -24,23 +36,36 @@ class IDFLoader(object):
                 self.idf_freq[word] = float(freq)
         print('Vocabularies loaded: %d' % cnt)
         self.mean_idf = sum(self.idf_freq.values()) / cnt
+    
+    def read_file(self, path, type):
+        # file.read([size])从文件读取指定的字节数，如果未给定或为负则读取所有。
+        if type == 'json':
+            with open(path, 'r', encoding='utf-8') as file:
+                data = json.loads(file.read())
+        elif type == 'txt':
+            with open(path, 'r', encoding='utf-8') as file:
+                data = file.read()
+        return data
 
-
-class TFIDF(object):
-    def __init__(self, idf_path):
-        self.idf_loader = IDFLoader(idf_path)
-        self.idf_freq = self.idf_loader.idf_freq
-        self.mean_idf = self.idf_loader.mean_idf
+    def __iter__(self):
+        for fname in self.fname:
+            # 內文
+            docs = self.read_file(self.folderName + '/' + fname, 'json')
+            for i in range(len(docs)):
+                yield segment(docs[i]['title'])
+                yield segment(docs[i]['content'])
+            # text = open(os.path.join(self.folderName, fname),
+            #             'r', encoding='utf-8', errors='ignore').read()
 
     def extract_keywords(self, sentence, topK=20):    # 提取關鍵詞
         # 斷詞
         seg_list = segment(sentence)
-        print(seg_list)
+        # print(seg_list)
         freq = {}
         for w in seg_list:
             # 如果沒有找到word，設成0，再+1。如果有找到word就+1
             freq[w] = freq.get(w, 0.0) + 1.0
-            # freq[w]=freq[w]/len(seg_list)
+            freq[w]=freq[w]/len(seg_list)
         # print(seg_list)
         # print(freq)
         total = sum(freq.values())#文檔數量
@@ -56,6 +81,7 @@ class TFIDF(object):
             return tags[:topK]
         else:
             return tags
+
 
 def main(argv):
     idffile = ''
@@ -87,13 +113,16 @@ def main(argv):
         elif opt in ("-t", "--topK"):
             topK = int(arg)
 
-    tdidf = TFIDF(idffile)
-    # 讀檔
-    sentence = open(document, 'r', encoding='utf-8', errors='ignore').read()
-    tags = tdidf.extract_keywords(sentence, topK)
+    documents = MyDocuments(idffile,document)
 
-    for tag in tags:
-        print(tag)
+    for doc in documents:
+        print(doc)
+    # 讀檔
+    # sentence = open(document, 'r', encoding='utf-8', errors='ignore').read()
+    # tags = tdidf.extract_keywords(sentence, topK)
+
+    # for tag in tags:
+    #     print(tag)
 
 
 if __name__ == "__main__":

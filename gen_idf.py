@@ -13,6 +13,8 @@ import datetime
 import sys, getopt
 
 from segmenter import segment
+FOLDER_NAME='data'
+jieba.load_userdict(FOLDER_NAME+'/dict.txt') 
 
 class MyDocuments(object):    # memory efficient data streaming
     def __init__(self, dirname):

@@ -9,6 +9,7 @@ import json
 import codecs
 from datetime import datetime,timedelta
 from datetime import date
+import datetime
 
 class MyDocuments(object):
     def __init__(self, idf_path,dirname):
@@ -37,6 +38,12 @@ class MyDocuments(object):
         for fname in self.fname:
             docs = self.read_file(self.folderName + '/' + fname, 'json')
             for i in range(len(docs)):
+                #ettoday有機會爬到沒有標題的新聞
+                if not docs[i]['title']:
+                    docs[i]['title']='無標題'
+
+                if not docs[i]['content']:
+                    docs[i]['content']='無內文'
                 self.docs.append(docs[i])
 
     def load_idf(self):       # 從文件中載入IDF
@@ -63,36 +70,12 @@ class MyDocuments(object):
         return data
 
     def __iter__(self):
+        
         for i in range(len(self.docs)):
             yield segment(self.docs[i]['title'])
             yield segment(self.docs[i]['content'])
         # text = open(os.path.join(self.folderName, fname),
         #             'r', encoding='utf-8', errors='ignore').read()
-
-    def extract_keywords(self, sentence, topK=10):    # 提取關鍵詞
-        # 斷詞
-        seg_list = segment(sentence)
-        # print(seg_list)
-        freq = {}
-        for w in seg_list:
-            # 如果沒有找到word，設成0，再+1。如果有找到word就+1
-            freq[w] = freq.get(w, 0.0) + 1.0
-            # freq[w]=freq[w]/len(seg_list)
-        # print(seg_list)
-        # print(freq)
-        total = sum(freq.values())#該文檔詞數總數量
-        for k in freq:   # 計算 TF-IDF
-            freq[k] = (freq[k]/ total) *(self.idf_freq.get(k, self.mean_idf)) 
-            # freq[k] *= self.idf_freq.get(k, self.mean_idf)
-            # print(freq[k])
-
-        
-        tags = sorted(freq, key=freq.__getitem__, reverse=True)  # 排序
-
-        if topK:
-            return tags[:topK]
-        else:
-            return tags
 
 
 def main(argv):
@@ -150,6 +133,10 @@ def main(argv):
         #標題
         if i%2!=0:
             pass
+            # for w in doc:
+            #     freq[w]*=2
+            
+            # pass
         #內文
         else:
             total = sum(freq.values())#文檔所有詞數量，包含標題和內文
@@ -164,6 +151,8 @@ def main(argv):
             # print('---------------------------')
             # print(docs[index])
             index+=1
+            if index % 100 == 0:
+                print('Documents processed: ', index, ', time: ',datetime.datetime.now())
                 # return tags[:topK]
 
 
@@ -175,7 +164,7 @@ def main(argv):
     YTD=str(date.today()-timedelta(1))
     toList = []
     filename = 'News_'+YTD+'.json'
-    DIR_NAME = "news"
+    DIR_NAME = "YTDnews"
     OUTPUT_DIR = os.path.join(os.path.split(os.path.realpath(__file__))[0], DIR_NAME)
     if not os.path.exists(OUTPUT_DIR):  # 先確認資料夾是否存在
         os.makedirs(OUTPUT_DIR)

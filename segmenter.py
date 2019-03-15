@@ -25,3 +25,11 @@ def segment(sentence, cut_all=False):
     # sentence = ' '.join(jieba.cut(sentence, cut_all=cut_all))
     # return re.sub('[a-zA-Z0-9.。:：,，)）(（！!??”“\"]', '', sentence).split()
     return word
+
+
+def preprocess(sentence, cut_all=False):
+    sentence = sentence.replace("\n", "")
+    sentence = sentence.replace("\r", "")
+    sentence = sentence.replace("\u3000", "")
+    sentence = sentence.strip()
+    return sentence

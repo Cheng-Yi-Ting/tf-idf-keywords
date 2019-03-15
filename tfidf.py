@@ -2,9 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from segmenter import segment
+from segmenter import preprocess
 import sys, getopt
 import os
 import json
+import codecs
+from datetime import datetime,timedelta
+from datetime import date
 
 class MyDocuments(object):
     def __init__(self, idf_path,dirname):
@@ -23,6 +27,17 @@ class MyDocuments(object):
         self.idf_freq = {}     # idf
         self.mean_idf = 0.0    # 均值
         self.load_idf()
+        self.docs=[]
+
+        if not os.path.isdir(dirname):
+            print(dirname, '- not a directory!')
+            sys.exit()
+
+        #讀取當日新聞
+        for fname in self.fname:
+            docs = self.read_file(self.folderName + '/' + fname, 'json')
+            for i in range(len(docs)):
+                self.docs.append(docs[i])
 
     def load_idf(self):       # 從文件中載入IDF
         cnt = 0
@@ -48,16 +63,13 @@ class MyDocuments(object):
         return data
 
     def __iter__(self):
-        for fname in self.fname:
-            # 內文
-            docs = self.read_file(self.folderName + '/' + fname, 'json')
-            for i in range(len(docs)):
-                yield segment(docs[i]['title'])
-                yield segment(docs[i]['content'])
-            # text = open(os.path.join(self.folderName, fname),
-            #             'r', encoding='utf-8', errors='ignore').read()
+        for i in range(len(self.docs)):
+            yield segment(self.docs[i]['title'])
+            yield segment(self.docs[i]['content'])
+        # text = open(os.path.join(self.folderName, fname),
+        #             'r', encoding='utf-8', errors='ignore').read()
 
-    def extract_keywords(self, sentence, topK=20):    # 提取關鍵詞
+    def extract_keywords(self, sentence, topK=10):    # 提取關鍵詞
         # 斷詞
         seg_list = segment(sentence)
         # print(seg_list)
@@ -65,13 +77,13 @@ class MyDocuments(object):
         for w in seg_list:
             # 如果沒有找到word，設成0，再+1。如果有找到word就+1
             freq[w] = freq.get(w, 0.0) + 1.0
-            freq[w]=freq[w]/len(seg_list)
+            # freq[w]=freq[w]/len(seg_list)
         # print(seg_list)
         # print(freq)
-        total = sum(freq.values())#文檔數量
+        total = sum(freq.values())#該文檔詞數總數量
         for k in freq:   # 計算 TF-IDF
-            # freq[k] *= self.idf_freq.get(k, self.mean_idf) / total
-            freq[k] *= self.idf_freq.get(k, self.mean_idf)
+            freq[k] = (freq[k]/ total) *(self.idf_freq.get(k, self.mean_idf)) 
+            # freq[k] *= self.idf_freq.get(k, self.mean_idf)
             # print(freq[k])
 
         
@@ -114,15 +126,81 @@ def main(argv):
             topK = int(arg)
 
     documents = MyDocuments(idffile,document)
-
+    idf_freq = documents.idf_freq
+    mean_idf = documents.mean_idf
+    docs=documents.docs
+    i = 0
+    index=0
+    # freq = {}
     for doc in documents:
-        print(doc)
+        i+=1
+        # print(doc)
+        # print(len(doc))
+        # 每次讀到title欄位的時候清空freq和tfidf，標題和內文算同一篇文檔
+        if i%2!=0:
+            # print(i)
+            freq = {}
+            tfidf={}
+
+        #計算freq
+        for w in doc:
+            # 如果沒有找到word，設成0，再+1。如果有找到word就+1
+            freq[w] = freq.get(w, 0.0) + 1.0
+
+        #標題
+        if i%2!=0:
+            pass
+        #內文
+        else:
+            total = sum(freq.values())#文檔所有詞數量，包含標題和內文
+            for k in freq:   # 計算 TF-IDF
+                tfidf[k] =(freq[k]/total)*idf_freq.get(k,mean_idf)
+            tags = sorted(tfidf, key=tfidf.__getitem__, reverse=True)  # 排序
+
+            # Write TFIDF Top 10 to keywords field
+            docs[index]['keywords']=[]
+            for words in tags[:topK]:
+                docs[index]['keywords'].append(words)
+            # print('---------------------------')
+            # print(docs[index])
+            index+=1
+                # return tags[:topK]
+
+
+        # else:
+        #     return tags
+        # 寫檔
+    # print('---------------------------')
+    # print(docs[1])
+    YTD=str(date.today()-timedelta(1))
+    toList = []
+    filename = 'News_'+YTD+'.json'
+    DIR_NAME = "news"
+    OUTPUT_DIR = os.path.join(os.path.split(os.path.realpath(__file__))[0], DIR_NAME)
+    if not os.path.exists(OUTPUT_DIR):  # 先確認資料夾是否存在
+        os.makedirs(OUTPUT_DIR)
+
+    fp = codecs.open(OUTPUT_DIR + "/" + filename, "w", "utf-8")
+    for i in range(len(docs)):
+        # tfidf_json[i]['keywords']='daddsa'
+        # print('=========================')
+        # print(tfidf_json[i]['keywords'])
+        docs[i]['title']=preprocess(docs[i]['title'])
+        docs[i]['content']=preprocess(docs[i]['content'])
+        docs[i]['description']=preprocess(docs[i]['description'])
+        toList.append(docs[i])
+        # print(tfidf_json[i])
+
+    toList = json.dumps(toList, ensure_ascii=False)
+    fp.write(toList)
+    fp.close()
     # 讀檔
     # sentence = open(document, 'r', encoding='utf-8', errors='ignore').read()
     # tags = tdidf.extract_keywords(sentence, topK)
 
     # for tag in tags:
     #     print(tag)
+
 
 
 if __name__ == "__main__":
